@@ -34,7 +34,7 @@ class smaStrategy:
         self.sqlconn = create_engine('sqlite:///smaDataFrame{}.db'.format(time.strftime("%d-%b-%Y")), echo=False)
         # Fetch the indicators every minute, making necessary trades ///only rsi and gain>0.1% for now.
         while self.alpaca.get_clock().is_open:
-            df = self.butchTi()
+            df = self.batchTi()
             print('============================== New Cycle ============================================')
             print('current time = {}'.format(datetime.datetime.now()))
             print('-------------------------------------------------------------------------------------')
@@ -70,7 +70,7 @@ class smaStrategy:
             isOpen = self.alpaca.get_clock().is_open
 
     # time series indicators for symbols : list of symbols [sym1, sm2, ...., symN]
-    def butchTi(self):
+    def batchTi(self):
 
         with concurrent.futures.ThreadPoolExecutor() as ex:
             tis = [ex.submit(self.timeInd, symbolId) for symbolId in range(len(self.symbols))]
