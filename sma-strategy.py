@@ -34,15 +34,16 @@ class smaStrategy:
         self.sqlconn = create_engine('sqlite:///smaDataFrame{}.db'.format(time.strftime("%d-%b-%Y")), echo=False)
         # Fetch the indicators every minute, making necessary trades ///only rsi and gain>0.1% for now.
         while self.alpaca.get_clock().is_open:
-            df = self.butchTimeSeries()
+            df = self.butchTi()
             print('============================== New Cycle ============================================')
             print('current time = {}'.format(datetime.datetime.now()))
             print('-------------------------------------------------------------------------------------')
             print(df)
             print('-------------------------------------------------------------------------------------')
-            dfSymSig = df[['symbol', 'signal']].drop_duplicates(keep='first')
-            shortSymbols = dfSymSig[dfSymSig['signal'] == 'sell']['symbol'].tolist()
-            longSymbols = dfSymSig[dfSymSig['signal'] == 'buy']['symbol'].tolist()
+            #split stocks to sell and buy groups so we can send butch sell/buy --> alpaca paper trading
+            ss = df[['symbol', 'signal']].drop_duplicates(keep='first')
+            shortSymbols = ss[ss['signal'] == 'sell']['symbol'].tolist()
+            longSymbols = ss[ss['signal'] == 'buy']['symbol'].tolist()
             respSell = []
             respBuy = []
             self.sendBatchOrder(self.qty, shortSymbols, 'sell', respSell)
@@ -68,29 +69,36 @@ class smaStrategy:
             time.sleep(60)
             isOpen = self.alpaca.get_clock().is_open
 
-    # time series for butch symbols : list of symbols [sym1, sm2, ...., symN]
-    def butchTimeSeries(self):
+    # time series indicators for symbols : list of symbols [sym1, sm2, ...., symN]
+    def butchTi(self):
+
+        with concurrent.futures.ThreadPoolExecutor() as ex:
+            tis = [ex.submit(self.timeInd, symbolId) for symbolId in range(len(self.symbols))]
+
         df = pd.DataFrame()
-        # with concurrent.futures.ProcessPoolExecutor as executor:
-        for symbol in self.symbols:
-            # ts = [executor.submit(self.td.time_series, symbol=symbol, interval='1min', outputsize=self.outputsize,) for symbol in self.symbols]
-            ts = self.td.time_series(symbol=symbol, interval='1min', outputsize=self.outputsize)
-            # only sma5, sma8 and sma13 for the moment
-            indicators = ts.with_sma(time_period=5).with_sma(time_period=8).with_sma(time_period=13).as_pandas()
-            indicators['symbol'] = symbol
-            print(indicators)
-            if not indicators.empty and indicators['sma1'][0] > indicators['sma2'][0] \
-                    and indicators['sma1'][-1] < indicators['sma2'][-1] \
-                    and indicators['sma1'][0] > indicators['sma3'][0]:
-                indicators['signal'] = 'buy'
-            elif not indicators.empty and indicators['sma1'][0] < indicators['sma2'][0] \
-                    and indicators['sma1'][-1] > indicators['sma2'][-1] \
-                    and indicators['sma2'][0] > indicators['sma3'][0]:
-                indicators['signal'] = 'sell'
-            else:
-                indicators['signal'] = None
-            df = df.append(indicators)
+        for f in concurrent.futures.as_completed(tis):
+            df = df.append(f.result())
+
         return df
+
+    # return time_series indicator (ti) of a specific symbol stock
+    def timeInd(self, symbolID=0):
+        ts = self.td.time_series(symbol=self.symbols[symbolID], interval='1min', outputsize=3)
+        ti = ts.with_sma(time_period=5).with_sma(time_period=8).with_sma(time_period=13).as_pandas()
+        ti['symbol'] = self.symbols[symbolID]
+        #trying to make up the trade signal buy/sell/None
+        if not ti.empty and ti['sma1'][0] > ti['sma2'][0] \
+                and ti['sma1'][-1] < ti['sma2'][-1] \
+                and ti['sma1'][0] > ti['sma3'][0]:
+            ti['signal'] = 'buy'
+        elif not ti.empty and ti['sma1'][0] < ti['sma2'][0] \
+                and ti['sma1'][-1] > ti['sma2'][-1] \
+                and ti['sma2'][0] > ti['sma3'][0]:
+            ti['signal'] = 'sell'
+        else:
+            ti['signal'] = None
+
+        return ti
 
     # Submit a batch order that returns completed and uncompleted orders.
     def sendBatchOrder(self, qty, stocks, side, resp):
@@ -139,12 +147,7 @@ class smaStrategy:
 
 t0 = time.perf_counter()
 
-rsis = smaStrategy()
-rsis.run()
-
-#df = rsis.butchTimeSeries()
-#print(df)
-
-
+sma = smaStrategy()
+sma.run()
 
 print('total exec time = {}'.format(time.perf_counter() - t0))
