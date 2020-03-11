@@ -1,7 +1,11 @@
 # intraday-trading-samples
 Some basic intraday trading strategis [Credits :TwelveData for bars & Indicators, Alpaca Markets Paper]
 
-SMA Strategy
+## Needed packages
+1. twelvedata : https://github.com/twelvedata/twelvedata-python
+2. Alpaca trade Api : https://github.com/alpacahq/alpaca-trade-api-python
+
+##SMA Strategy
 - Applied on a set of 10 stocks (Symbols List)
 - SMA : Simple Moving Average
 - SMAX, X = Average Window Size
