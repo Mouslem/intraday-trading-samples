@@ -1,4 +1,4 @@
-# intraday-trading-samples
+# SMA based intraday-trading
 Some basic intraday trading strategis [Credits :TwelveData for bars & Indicators, Alpaca Markets Paper]
 
 ## Needed packages
